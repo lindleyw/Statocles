@@ -561,31 +561,37 @@ sub build {
         $store->write_file( $page->path, $content );
     }
 
-    # Build the sitemap.xml
-    # html files only
-    # sorted by path to keep order and prevent spurious deploy commits
-    my @indexed_pages = map { $_->[0] }
-                        sort { $a->[1] cmp $b->[1] }
-                        map { [ $_, $self->url( $_->path ) ] }
-                        grep { $_->path =~ /[.]html?$/ }
-                        @pages;
-    my $tmpl = $self->theme->template( site => 'sitemap.xml' );
-    my $sitemap = Statocles::Page::Plain->new(
-        path => '/sitemap.xml',
-        content => $tmpl->render( site => $self, pages => \@indexed_pages ),
+    # Build site meta-content.
+    # For backwards compatibility, pass a sorted list of only the HTML pages.
+
+    # Sort HTML page list by path to keep order and prevent spurious deploy commits
+    my @indexed_html_pages = map { $_->[0] }
+                             sort { $a->[1] cmp $b->[1] }
+                             map { [ $_, $self->url( $_->path ) ] }
+                             grep { $_->path =~ /[.]html?$/ }
+                             @pages;
+
+    $self->emit(
+        'after_build_write',
+        class => 'Statocles::Event::Pages',
+        pages => \@indexed_html_pages,
     );
-    push @pages, $sitemap;
-    $store->write_file( 'sitemap.xml', $sitemap->render );
+
+    my %meta_templates = ('sitemap.xml' => '/sitemap.xml',
+                          'robots.txt'  => '/robots.txt');
+    while (my ($meta_tmpl, $meta_path) = each %meta_templates) {
+        my $tmpl = $self->theme->template( site => $meta_tmpl );
+        my $meta_page = Statocles::Page::Plain->new(
+            path => $meta_path,
+            content => $tmpl->render( site => $self, pages => \@indexed_html_pages,
+                                      all_pages => \@pages ),
+        );
+        push @pages, $meta_page;
+        $store->write_file( $meta_tmpl, $meta_page->render( %args ) );
+    }
 
     # robots.txt is the best way for crawlers to automatically discover sitemap.xml
-    # We should do more with this later...
-    my $robots_tmpl = $self->theme->template( site => 'robots.txt' );
-    my $robots = Statocles::Page::Plain->new(
-        path => '/robots.txt',
-        content => $robots_tmpl->render( site => $self ),
-    );
-    push @pages, $robots;
-    $store->write_file( 'robots.txt', $robots->render );
+    # We should do more with it later...
 
     # Add the theme
     for my $page ( $self->theme->pages ) {
