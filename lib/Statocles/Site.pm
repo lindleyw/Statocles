@@ -91,6 +91,25 @@ has index => (
     default => sub { '/' },
 );
 
+=attr metatemplates
+
+A collection of templates to be used to create the metainformation
+about the site, in the form of a hash where the key is the name of
+the template and the value is the path of the file to be made.
+Defaults to making C<sitemap.xml> and C<robots.txt> in the site's root
+directory.
+
+=cut
+
+has metatemplates => (
+    is => 'ro',
+    isa => HashRef,
+    default => sub { { 'sitemap.xml' => '/sitemap.xml',
+                       'robots.txt'  => '/robots.txt',
+                     }
+                   },
+);
+
 =attr nav
 
 Named navigation lists. A hash of arrays of hashes with the following keys:
@@ -577,9 +596,7 @@ sub build {
         pages => \@indexed_html_pages,
     );
 
-    my %meta_templates = ('sitemap.xml' => '/sitemap.xml',
-                          'robots.txt'  => '/robots.txt');
-    while (my ($meta_tmpl, $meta_path) = each %meta_templates) {
+    while (my ($meta_tmpl, $meta_path) = each %{ $self->metatemplates } ) {
         my $tmpl = $self->theme->template( site => $meta_tmpl );
         my $meta_page = Statocles::Page::Plain->new(
             path => $meta_path,
